@@ -1,5 +1,5 @@
 import os
-from dotenv import load_dotenv # Добавляем импорт
+from dotenv import load_dotenv
 from data_manager import load_leads, save_results
 from llm_client import classify_lead_with_llm
 
