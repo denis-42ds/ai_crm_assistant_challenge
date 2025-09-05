@@ -1,11 +1,13 @@
+import os
 import requests
-import json
+from fastapi import HTTPException
+from pydantic import BaseModel
 
-def create_prompt(lead_text):
-    """
-    Создает промпт для LLM на основе текста лида.
-    """
-    prompt = f"""
+class LeadText(BaseModel):
+    text: str
+
+def create_prompt(lead_text: str):
+    return f"""
 Ты — ассистент по приоритизации лидов. Проанализируй текст запроса от клиента и присвой ему один из трёх тегов: Горячий, Тёплый или Холодный.
 
 Определения:
@@ -18,12 +20,8 @@ def create_prompt(lead_text):
 
 Ответ должен содержать только один тег, без дополнительных слов.
 """
-    return prompt
 
-def classify_lead_with_llm(lead_text, api_key):
-    """
-    Отправляет запрос к API LLM для классификации лида.
-    """
+def classify_lead_with_llm(lead_text: str, api_key: str):
     url = "https://amo-ai-challenge-1.up.railway.app/v1/chat/completions"
     headers = {
         "accept": "application/json",
@@ -32,25 +30,21 @@ def classify_lead_with_llm(lead_text, api_key):
     }
 
     prompt = create_prompt(lead_text)
-
     payload = {
         "model": "gpt-4.1-mini",
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
+        "messages": [{"role": "user", "content": prompt}]
     }
 
     try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status() # Вызывает ошибку для плохих статусов HTTP
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        classification = response.json()["choices"][0]["message"]["content"].strip()
 
-        result = response.json()
-        # Извлекаем текст ответа из JSON
-        classification = result["choices"][0]["message"]["content"].strip()
-        return classification
+        valid_tags = ["Горячий", "Тёплый", "Холодный"]
+        if classification not in valid_tags:
+            return {"classification": "Неизвестно"}
+
+        return {"classification": classification}
+
     except requests.exceptions.RequestException as e:
-        print(f"Ошибка при запросе к LLM API: {e}")
-        return "Ошибка"
+        raise HTTPException(status_code=500, detail=f"Ошибка при запросе к LLM API: {e}")

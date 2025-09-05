@@ -1,71 +1,40 @@
 import os
-import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from .assistants.classifier import classify_lead_with_llm
+from .assistants.extractor import extract_info_with_llm
+from .assistants.editor import edit_note_with_llm
+from .assistants.extractor import ExtractedInfo
+from .assistants.classifier import LeadText as ClassifierLeadText
+from .assistants.extractor import LeadText as ExtractorLeadText
+from .assistants.editor import LeadText as EditorLeadText
 
-# Загружаем переменные окружения из .env-файла
+
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
-app = FastAPI()
-
-class LeadText(BaseModel):
-    text: str
-
-def create_prompt(lead_text: str):
-    """
-    Создаёт промпт для LLM на основе текста лида.
-    """
-    return f"""
-Ты — ассистент по приоритизации лидов. Проанализируй текст запроса от клиента и присвой ему один из трёх тегов: Горячий, Тёплый или Холодный.
-
-Определения:
-Горячий: клиент имеет конкретный запрос, готов обсуждать сделку, бюджет и сроки.
-Тёплый: клиент на этапе сбора информации, запрашивает кейсы, сравнивает предложения.
-Холодный: клиент задает общие вопросы, не имеет конкретной потребности, просто изучает рынок.
-
-Текст запроса:
-{lead_text}
-
-Ответ должен содержать только один тег, без дополнительных слов.
-"""
+app = FastAPI(
+    title="AI CRM Assistant Service",
+    description="API для AI-ассистента, который автоматизирует рутинные задачи в CRM.",
+    version="0.1.0"
+    )
 
 @app.post("/classify")
-async def classify_lead(lead: LeadText):
-    """
-    Принимает текст лида и возвращает его классификацию с помощью LLM.
-    """
+async def classify_lead(lead: ClassifierLeadText):
     if not API_KEY:
         raise HTTPException(status_code=500, detail="API key is not configured.")
+    return classify_lead_with_llm(lead.text, API_KEY)
 
-    url = "https://amo-ai-challenge-1.up.railway.app/v1/chat/completions"
-    headers = {
-        "accept": "application/json",
-        "x-litellm-api-key": API_KEY,
-        "Content-Type": "application/json"
-    }
+@app.post("/extract-info", response_model=ExtractedInfo)
+async def extract_info(lead: ExtractorLeadText):
+    if not API_KEY:
+        raise HTTPException(status_code=500, detail="API key is not configured.")
+    return extract_info_with_llm(lead.text, API_KEY)
 
-    prompt = create_prompt(lead.text)
+@app.post("/edit-note")
+async def edit_note(note: EditorLeadText):
+    if not API_KEY:
+        raise HTTPException(status_code=500, detail="API key is not configured.")
+    return edit_note_with_llm(note.text, API_KEY)
 
-    payload = {
-        "model": "gpt-4.1-mini",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status() # Вызовет ошибку для плохих статусов HTTP
-
-        result = response.json()
-        classification = result["choices"][0]["message"]["content"].strip()
-
-        # Проверяем, что ответ соответствует одному из наших тегов
-        valid_tags = ["Горячий", "Тёплый", "Холодный"]
-        if classification not in valid_tags:
-            return {"classification": "Неизвестно"} # Обработка невалидного ответа
-
-        return {"classification": classification}
-
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при запросе к LLM API: {e}")
