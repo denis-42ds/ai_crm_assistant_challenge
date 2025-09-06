@@ -1,11 +1,15 @@
 import os
-import requests
 import json
-from fastapi import HTTPException
+import requests
 from pydantic import BaseModel
+from fastapi import HTTPException
 
 class NoteText(BaseModel):
     text: str
+
+class RiskAssessment(BaseModel):
+    is_at_risk: bool
+    reason: str
 
 def create_prompt(note_text: str):
     return f"""
@@ -22,7 +26,10 @@ def create_prompt(note_text: str):
 """
 
 def assess_risk_with_llm(note_text: str, api_key: str):
-    url = "https://amo-ai-challenge-1.up.railway.app/v1/chat/completions"
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key is not configured.")
+
+    llm_url = os.getenv("LLM_API_URL", "https://amo-ai-challenge-1.up.railway.app/v1/chat/completions")
     headers = {
         "accept": "application/json",
         "x-litellm-api-key": api_key,
@@ -36,13 +43,21 @@ def assess_risk_with_llm(note_text: str, api_key: str):
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(llm_url, headers=headers, json=payload)
         response.raise_for_status()
 
         raw_result = response.json()["choices"][0]["message"]["content"].strip()
-        risk_data = json.loads(raw_result)
 
-        return risk_data
-
-    except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+        try:
+            risk_data = json.loads(raw_result)
+            # Проверяем, что ответ соответствует ожидаемому формату
+            if isinstance(risk_data, dict) and "is_at_risk" in risk_data and "reason" in risk_data:
+                return risk_data
+            else:
+                raise ValueError("Ответ LLM имеет некорректный формат.")
+        
+        except json.JSONDecodeError:
+            raise ValueError("Ответ LLM не является валидным JSON.")
+        
+    except (requests.exceptions.RequestException, ValueError) as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при обработке запроса: {e}")

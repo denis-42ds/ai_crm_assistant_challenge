@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Демонстрация CRM-ассистентов</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #1e3a8a;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+        }
+        .buttons-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: background-color 0.3s, transform 0.2s;
+            color: white;
+            margin: 5px;
+        }
+        #classifyBtn { background-color: #3b82f6; }
+        #extractBtn { background-color: #10b981; }
+        #editBtn { background-color: #f59e0b; }
+        #riskBtn { background-color: #ef4444; }
+        .button:hover { transform: translateY(-2px); }
+        .result-box {
+            background: #e0f2fe;
+            border-left: 5px solid #0ea5e9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            **word-break: break-all;**
+            font-family: monospace;
+        }
+        .result-box h2 {
+            margin-top: 0;
+            color: #0c4a6e;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 2s linear infinite;
+            display: none;
+            margin: auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Демонстрация CRM-ассистентов</h1>
+    <p>Введите текст заметки или переписки по сделке и выберите ассистента для обработки.</p>
+    <textarea id="textInput" placeholder="Введите текст, например: 'Добрый день, меня зовут Иван из компании ООО Рога и Копыта. Наш email info@rogi.ru. Интересует ваш продукт, но сейчас мы не готовы к покупке.'"></textarea>
+    
+    <div class="buttons-container">
+        <button id="classifyBtn" class="button">Ассистент 1: Классификация 🏷️</button>
+        <button id="extractBtn" class="button">Ассистент 2: Извлечение данных 📄</button>
+        <button id="editBtn" class="button">Ассистент 3: Редактор ✍️</button>
+        <button id="riskBtn" class="button">Ассистент 4: Радар рисков 🚨</button>
+    </div>
+
+    <div class="loader" id="loader"></div>
+    
+    <div id="result" class="result-box" style="display: none;">
+        <h2>Результат:</h2>
+        <pre id="resultContent"></pre>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8000";
+    const textInput = document.getElementById('textInput');
+    const resultBox = document.getElementById('result');
+    const resultContent = document.getElementById('resultContent');
+    const loader = document.getElementById('loader');
+
+    async function callApi(endpoint) {
+        const text = textInput.value;
+        if (!text) {
+            alert('Пожалуйста, введите текст.');
+            return;
+        }
+
+        resultBox.style.display = 'none';
+        loader.style.display = 'block';
+
+        try {
+            const response = await fetch(`${API_URL}/${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(`Ошибка API: ${response.status} - ${error.detail || 'Неизвестная ошибка'}`);
+            }
+
+            const data = await response.json();
+            
+            let formattedOutput = JSON.stringify(data, null, 2);
+            formattedOutput = formattedOutput.replace(/\\n/g, '\n');
+
+            resultContent.textContent = formattedOutput;
+            resultBox.style.display = 'block';
+
+        } catch (error) {
+            resultContent.textContent = `Ошибка: ${error.message}`;
+            resultBox.style.display = 'block';
+            console.error(error);
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+
+    document.getElementById('classifyBtn').addEventListener('click', () => callApi('classify'));
+    document.getElementById('extractBtn').addEventListener('click', () => callApi('extract-info'));
+    document.getElementById('editBtn').addEventListener('click', () => callApi('edit-note'));
+    document.getElementById('riskBtn').addEventListener('click', () => callApi('risk-assessment'));
+</script>
+
+</body>
+</html>
