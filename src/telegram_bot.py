@@ -1,11 +1,11 @@
 import os
+import re
+import json
 import logging
 import requests
-import re # Import the regular expression module
-from dotenv import load_dotenv
 from telegram import Update
+from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-import json
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -37,7 +37,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_at_risk = risk_data.get("is_at_risk", False)
             reason = risk_data.get("reason", "нет")
             
-            # Escape the reason text before using it in the reply
             escaped_reason = escape_markdown(reason)
 
             if is_at_risk:
